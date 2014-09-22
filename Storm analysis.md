@@ -2,7 +2,7 @@
 title: "Human and financial cost of weather events across USA"
 author: "Tiago Fonseca"
 date: "21-09-2014"
-output: html_document
+output: pdf_document
 ---
 
 ## Abstract
