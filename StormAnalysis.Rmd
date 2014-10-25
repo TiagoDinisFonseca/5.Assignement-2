@@ -1,0 +1,286 @@
+---
+title: "Human and financial cost of weather events across USA"
+author: "Tiago Fonseca"
+date: "21-09-2014"
+output: html_document
+---
+
+```{r global_options, include=FALSE}
+	opts_chunk$set(fig.width=12, fig.height=8, cache=FALSE, warning=FALSE)
+```
+
+## Abstract
+
+In this documents we study the fatalities, injuries and financial damages caused by weather events.
+We focus ourselves in two different set of questions:
+
+1. Are amount of fatalities, injuries and the financial cost correlated?
+
+2. Which are the events that are more expensive in terms of fatalities, injuries and financial damages?
+
+In order to achieve our goal, we load the file from the indicated url, and we clean up the data.
+In the data there is two sorts of financial damages and we add one to the other.
+Then, we compute the mean and the sum for the three concerned quantities.
+
+There is a lot of mistakes on the strings indicating the type of event, then we filter all the small things (small amount of injuries and fatalities and financial damages).
+So keep in mind that some data is removed from our anlysis. 
+The right thing to do would be to read all the types and merge them together when necessary, but this would be a very time consuming process.
+
+Finally, we plot the correlation between the average and the ranking according to the mean and the sum.
+
+## Data Processing 
+
+### Loading data
+
+The data was obtained directly from the indicated url, and it was stored in the memory.
+
+```{r message = FALSE}
+  download.file("https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2", 
+                "Storm_data.csv.bz2", method = "curl")
+  data <- read.table("Storm_data.csv.bz2", sep = ",", head = TRUE, na.strings = "")
+```
+
+### Cleaning data
+
+In order to clean the data, we remove the NA's. 
+The amount of fatalities, injuries and damages if not present is replaced by 0.
+
+```{r}
+  data$CROPDMG <- ifelse(is.na(data$CROPDMG), 0, data$CROPDMG)
+  data$PROPDMG <- ifelse(is.na(data$PROPDMG), 0, data$PROPDMG)
+  data$INJURIES <- ifelse(is.na(data$INJURIES), 0, data$INJURIES)
+  data$FATALITIES <- ifelse(is.na(data$FATALITIES), 0, data$FATALITIES)
+```
+
+Let us tranform the exponents in readable numbers, first the crop damages:
+```{r}
+  summary(data$CROPDMGEXP)
+  data$CROPDMGEXP <- ifelse(is.na(data$CROPDMGEXP), 1,
+                ifelse(data$CROPDMGEXP == "B", 1E9,
+                ifelse(data$CROPDMGEXP == "M", 1E6,
+                ifelse(data$CROPDMGEXP == "m", 1E6,
+                ifelse(data$CROPDMGEXP == "K", 1E3,
+                ifelse(data$CROPDMGEXP == "k", 1E3,
+                ifelse(data$CROPDMGEXP == "2", 1E2, 1)))))))
+```
+
+And the property damages:
+```{r}
+  summary(data$PROPDMGEXP)
+  data$PROPDMGEXP <- ifelse(is.na(data$PROPDMGEXP), 1,
+                ifelse(data$PROPDMGEXP == "B", 1E9,
+                ifelse(data$PROPDMGEXP == "M", 1E6,
+                ifelse(data$PROPDMGEXP == "m", 1E6,
+                ifelse(data$PROPDMGEXP == "K", 1E3,
+                ifelse(data$PROPDMGEXP == "H", 1E2,
+                ifelse(data$PROPDMGEXP == "h", 1E2,
+                ifelse(data$PROPDMGEXP == "8", 1E8,
+                ifelse(data$PROPDMGEXP == "7", 1E7,
+                ifelse(data$PROPDMGEXP == "6", 1E6,
+                ifelse(data$PROPDMGEXP == "5", 1E5,
+                ifelse(data$PROPDMGEXP == "4", 1E4,
+                ifelse(data$PROPDMGEXP == "3", 1E3,
+                ifelse(data$PROPDMGEXP == "2", 1E2,
+                ifelse(data$PROPDMGEXP == "1", 1E1, 1)))))))))))))))
+```
+
+
+The multiplicative factor for damage if not present is replaced by 1.
+
+In order to simplify the computations all event types were transformed to capital letters. 
+And gather them in 40 categories.
+
+```{r}
+  data$EVTYPE <- toupper(data$EVTYPE)
+  data$EVTYPE[grep("HAIL", data$EVTYPE)] <- "HAIL"
+  data$EVTYPE[grep("TORNADO", data$EVTYPE)] <- "TORNADO"
+  data$EVTYPE[grep("SPOUT", data$EVTYPE)] <- "TORNADO"
+  data$EVTYPE[grep("TORNDAO", data$EVTYPE)] <- "TORNADO"
+  data$EVTYPE[grep("HURRICANE", data$EVTYPE)] <- "HURRICANE"
+  data$EVTYPE[grep("FLOOD", data$EVTYPE)] <- "FLOOD"
+  data$EVTYPE[grep("THUNDER", data$EVTYPE)] <- "THUNDERSTORM"
+  data$EVTYPE[grep("GUSTNADO", data$EVTYPE)] <- "THUNDERSTORM"
+  data$EVTYPE[grep("TSTM", data$EVTYPE)] <- "THUNDERSTORM"
+  data$EVTYPE[grep("TIDE", data$EVTYPE)] <- "TIDES"
+  data$EVTYPE[grep("WIND", data$EVTYPE)] <- "WIND"
+  data$EVTYPE[grep("WND", data$EVTYPE)] <- "WIND"
+  data$EVTYPE[grep("FIRE", data$EVTYPE)] <- "FIRE" 
+  data$EVTYPE[grep("RAIN", data$EVTYPE)] <- "RAIN"
+  data$EVTYPE[grep("SNOW", data$EVTYPE)] <- "SNOW"
+  data$EVTYPE[grep("SLEET", data$EVTYPE)] <- "SNOW"
+  data$EVTYPE[grep("FOG", data$EVTYPE)] <- "FOG" 
+  data$EVTYPE[grep("ICE", data$EVTYPE)] <- "ICE"
+  data$EVTYPE[grep("ICY", data$EVTYPE)] <- "ICE"
+  data$EVTYPE[grep("GLAZE", data$EVTYPE)] <- "ICE"
+  data$EVTYPE[grep("COLD", data$EVTYPE)] <- "COLD"
+  data$EVTYPE[grep("FREEZ", data$EVTYPE)] <- "COLD"
+  data$EVTYPE[grep("FROST", data$EVTYPE)] <- "COLD"
+  data$EVTYPE[grep("LOW TEMP", data$EVTYPE)] <- "COLD"
+  data$EVTYPE[grep("HEAT", data$EVTYPE)] <- "HEAT"
+  data$EVTYPE[grep("HOT", data$EVTYPE)] <- "HEAT"
+  data$EVTYPE[grep("WARM", data$EVTYPE)] <- "HEAT"
+  data$EVTYPE[grep("HIGH TEMP", data$EVTYPE)] <- "HEAT"
+  data$EVTYPE[grep("DRY", data$EVTYPE)] <- "DROUGHT"
+  data$EVTYPE[grep("DROUGHT", data$EVTYPE)] <- "DROUGHT"
+  data$EVTYPE[grep("DRIEST", data$EVTYPE)] <- "DROUGHT"
+  data$EVTYPE[grep("DUST", data$EVTYPE)] <- "DUST" 
+  data$EVTYPE[grep("STORM", data$EVTYPE)] <- "STORM"
+  data$EVTYPE[grep("SHOWER", data$EVTYPE)] <- "RAIN"
+  data$EVTYPE[grep("PRECI",data$EVTYPE)] <- "RAIN"
+  data$EVTYPE[grep("WINTER",data$EVTYPE)] <- "RAIN"
+  data$EVTYPE[grep("WINTRY",data$EVTYPE)] <- "RAIN"
+  data$EVTYPE[grep("LIGHT", data$EVTYPE)] <- "LIGHTNING"
+  data$EVTYPE[grep("WET", data$EVTYPE)] <- "WETNESS" 
+  data$EVTYPE[grep("FLOOODING", data$EVTYPE)] <- "FLOOD" 
+  data$EVTYPE[grep("FLD", data$EVTYPE)] <- "FLOOD" 
+  data$EVTYPE[grep("STREAM", data$EVTYPE)] <- "FLOOD" 
+  data$EVTYPE[grep("SURF", data$EVTYPE)] <- "SURF ADVISORY"
+  data$EVTYPE[grep("AVA", data$EVTYPE)] <- "AVALANCHE"
+  data$EVTYPE[grep("VOLCANIC", data$EVTYPE)] <- "VOLCANIC EVENT"
+  data$EVTYPE[grep("VOG", data$EVTYPE)] <- "VOLCANIC EVENT"
+  data$EVTYPE[grep("SLIDE", data$EVTYPE)] <- "LANDSLIDE"
+  data$EVTYPE[grep("SLUMP", data$EVTYPE)] <- "LANDSLIDE"
+  data$EVTYPE[grep("EROSION", data$EVTYPE)] <- "COASTAL EROSION"
+  data$EVTYPE[grep("EROSIN", data$EVTYPE)] <- "COASTAL EROSION"
+  data$EVTYPE[grep("COASTAL", data$EVTYPE)] <- "COASTAL EROSION"
+  data$EVTYPE[grep("RIP", data$EVTYPE)] <- "RIP CURRENT"
+  data$EVTYPE[grep("BLIZZARD", data$EVTYPE)] <- "BLIZZARD"
+  data$EVTYPE[grep("CLOUD", data$EVTYPE)] <- "WALL/FUNNEL CLOUDS"
+  data$EVTYPE[grep("FUNNEL", data$EVTYPE)] <- "WALL/FUNNEL CLOUDS"
+  data$EVTYPE[grep("DAM", data$EVTYPE)] <- "DAM ACCIDENT"
+  data$EVTYPE[grep("SEAS",data$EVTYPE)] <- "ROUGH SEAS"
+  data$EVTYPE[grep("WAVE",data$EVTYPE)] <- "ROUGH SEAS"
+  data$EVTYPE[grep("WATER",data$EVTYPE)] <- "ROUGH SEAS"
+  data$EVTYPE[grep("SWELL",data$EVTYPE)] <- "ROUGH SEAS"
+  data$EVTYPE[grep("COOL", data$EVTYPE)] <- "COLD"
+  data$EVTYPE[grep("SMOKE",data$EVTYPE)] <- "SMOKE"
+  data$EVTYPE[grep("BURST",data$EVTYPE)] <- "DOWNBURST"
+  data$EVTYPE[grep("MARINE",data$EVTYPE)] <- "MARINE ACCIDENT"
+  data$EVTYPE[grep("HYPOTHERMIA",data$EVTYPE)] <- "HYPOTHERMIA"
+  data$EVTYPE[grep("HYPERTHERMIA",data$EVTYPE)] <- "HYPERTHERMIA"
+  data$EVTYPE[grep("TURBULENCE",data$EVTYPE)] <- "TURBULENCE"
+  data$EVTYPE[grep("SUMMARY", data$EVTYPE)] <- "OTHER"
+  data$EVTYPE[grep("TEMPERATURE", data$EVTYPE)] <- "OTHER"
+  data$EVTYPE[grep("URBAN", data$EVTYPE)] <- "OTHER"
+  data$EVTYPE[grep("NONE", data$EVTYPE)] <- "OTHER"
+  data$EVTYPE[grep("RECORD", data$EVTYPE)] <- "OTHER"
+  data$EVTYPE[grep("APACHE", data$EVTYPE)] <- "OTHER"
+  data$EVTYPE[grep("NO SEVERE", data$EVTYPE)] <- "OTHER"
+  data$EVTYPE[grep("PATTERN", data$EVTYPE)] <- "OTHER"
+  data$EVTYPE[grep("HIGH", data$EVTYPE)] <- "OTHER"
+  data$EVTYPE[grep("HEAVY", data$EVTYPE)] <- "OTHER"
+  data$EVTYPE[grep("SOUTHEAST", data$EVTYPE)] <- "OTHER"
+  data$EVTYPE[grep("EXCESSIVE", data$EVTYPE)] <- "OTHER"
+  data$EVTYPE[grep("SEICHE", data$EVTYPE)] <- "OTHER"
+  data$EVTYPE[grep("RED FLAG", data$EVTYPE)] <- "OTHER"
+  data$EVTYPE[grep("FLOYD", data$EVTYPE)] <- "OTHER"
+  data$EVTYPE[grep("\\?", data$EVTYPE)] <- "OTHER"
+```
+
+The financial damage is simply the sum of the property and the crop damages.
+
+```{r}
+  data$FDMG <- data$PROPDMG * data$PROPDMGEXP + data$CROPDMG * data$CROPDMGEXP
+```
+
+### Computing the mean and the total
+
+The mean, the sum and the number was measured for every type of event.
+
+```{r}
+  dataSum <- aggregate(subset(data, select = c("INJURIES", "FATALITIES", "FDMG")), list(data$EVTYPE), sum)
+  colnames(dataSum) <- c("EVTYPE", "INJURIESSUM", "FATALITIESSUM", "FDMGSUM")
+  dataMean <- aggregate(subset(data, select = c("INJURIES", "FATALITIES", "FDMG")), list(data$EVTYPE), mean)
+  colnames(dataMean) <- c("EVTYPE", "INJURIESMEAN", "FATALITIESMEAN", "FDMGMEAN")
+  dataFinal <- merge(dataSum, dataMean)
+  remove(data, dataSum, dataMean)
+```
+
+## Results
+
+We do two different anlysis, first the relation between different variables, and the second we do a rank for each variable.
+
+### Damage-fatalities plot
+
+The damages and fatalies are related as shows the following plot:
+
+```{r}
+  library(ggplot2)
+  pl <- ggplot(dataFinal, aes(x = FDMGMEAN, y = FATALITIESMEAN)) + geom_point()
+  pl <- pl + xlab("damages") + ylab("fatalities")
+  print(pl)
+```
+
+  There are a lot of financially expensive events that do not cost many lives. And the other way arround.
+  In fact this plots show that we can split between financially expensive events and fatal events.
+
+### Damage-injuries plot
+
+The damages and injuries are related as follows:
+
+```{r}
+  pl <- ggplot(dataFinal, aes(x = FDMGMEAN, y = INJURIESMEAN)) + geom_point()
+  pl <- pl + xlab("damages") + ylab("injuries")
+  print(pl)
+```
+
+The seperation betweem financial expensive and humanly expensive events is not as clear as before, in fact, there is an event that is both: very financial and humanly expensive.
+
+### Fatalities-injuries plot
+
+The fatalities and injuries are related as follows:
+
+```{r}
+  pl <- ggplot(dataFinal, aes(x = FATALITIESMEAN, y = INJURIESMEAN)) + geom_point()
+  pl <- pl + xlab("fatalities") + ylab("injuries")
+  print(pl)
+```
+
+It comes without surprise that there is a relation between fatalities and number of injuries.
+
+### Damage rank
+
+The ranking of financial damage in total:
+
+```{r}
+  head(subset(dataFinal[with(dataFinal, order(-FDMGSUM)),],select = c("EVTYPE", "FDMGSUM")), 20)
+```
+
+The ranking of financial damage in average:
+```{r}
+  head(subset(dataFinal[with(dataFinal, order(-FDMGMEAN)),],select = c("EVTYPE", "FDMGMEAN")), 20)
+```
+As we can see, floods are the events that give more financial damages, however if we compute the mean damage per event, hurricane is by far the worst event. 
+
+### Fatalities rank
+
+The ranking of the number of fatalities in total:
+
+```{r}
+  head(subset(dataFinal[with(dataFinal, order(-FATALITIESSUM)),],select = c("EVTYPE", "FATALITIESSUM")), 20)
+```
+
+The ranking of the number of fatalities in average:
+```{r}
+  head(subset(dataFinal[with(dataFinal, order(-FATALITIESMEAN)),],select = c("EVTYPE", "FATALITIESMEAN")), 20)
+```
+
+The events with more fatalities are tornados, heat periods and floods.
+The mean rank is dominated by very low frequent events and so is not very significant.
+
+### Injuries rank
+
+The ranking of the number of injuries in total:
+
+```{r}
+  head(subset(dataFinal[with(dataFinal, order(-INJURIESSUM)),],select = c("EVTYPE", "INJURIESSUM")), 20)
+```
+
+The ranking of the number of injuries in average:
+
+```{r}
+  head(subset(dataFinal[with(dataFinal, order(-INJURIESMEAN)),],select = c("EVTYPE", "INJURIESMEAN")), 20)
+```
+
+The events with more injuries are tornados, storms, heat periods and floods.
+The mean rank is dominated by very low frequent events and so is not very significant.
